@@ -10,7 +10,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         write_only=True,
         validators=[validate_password]
     )
-    password_confirm = serializers.CharField(write_only=True)
+    password_confirm = serializers.CharField(write_only=True, required=True)
 
     class Meta:
         model = User
@@ -22,7 +22,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         if attrs['password'] != attrs['password_confirm']:
             raise serializers.ValidationError(
-                {"password": "Password Field didn't match"}
+                {"password": "Password Fields didn't match"}
             )
         return attrs
 
@@ -76,11 +76,17 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
 
     def get_posts_count(self, obj):
-        return obj.posts.count()
+        try:
+            return obj.posts.count()
+        except AttributeError:
+            return 0
     
     def get_comments_count(self, obj):
-        return obj.comments.count()
-    
+        try:
+            return obj.comments.count()
+        except AttributeError:
+            return 0
+
 
 class UserUpdateSerializer(serializers.ModelSerializer):
 
@@ -117,6 +123,6 @@ class ChangePasswordSerializer(serializers.Serializer):
                  )
     def save(self):
         user = self.context['request'].user
-        user.set_passwords(self.validated_data['new_password'])
+        user.set_password(self.validated_data['new_password'])
         user.save()
         return user

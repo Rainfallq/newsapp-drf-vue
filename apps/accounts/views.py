@@ -1,7 +1,7 @@
 from rest_framework import status, generics, permissions
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.respone import Response
-from rest_framework.simplejwt.tokens import RefreshToken
+from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import login
 
 from .models import User
@@ -53,7 +53,7 @@ class LoginView(generics.GenericAPIView):
         }, status=status.HTTP_200_OK) #формирование ответа
     
 class ProfileView(generics.RetrieveUpdateAPIView):
-    serializer = UserProfileSerializer
+    serializer_class = UserProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self): #getting object
@@ -65,7 +65,7 @@ class ProfileView(generics.RetrieveUpdateAPIView):
         return UserProfileSerializer
     
 class ChangePasswordView(generics.UpdateAPIView):
-    serializer = ChangePasswordSerializer
+    serializer_class = ChangePasswordSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
