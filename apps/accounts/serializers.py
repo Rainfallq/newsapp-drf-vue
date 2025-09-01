@@ -86,7 +86,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        field = (
+        fields = (
             'first_name', 'last_name', 'avatar', 'bio'
         )
 
@@ -102,7 +102,7 @@ class ChangePasswordSerializer(serializers.Serializer):
         required=True,
         validators=[validate_password]
     )
-    new_password = serializers.CharField(required=True)
+    new_password_confirm = serializers.CharField(required=True)
 
     def validate_old_password(self, value):
         user = self.context['request'].user
