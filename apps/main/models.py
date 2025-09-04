@@ -30,7 +30,7 @@ class PostManager(models.Manager):
     def pinned_posts(self):
         return self.filter(
             pin_info__isnull=False,
-            pin_info__user__subscription__status='acitve',
+            pin_info__user__subscription__status='active',
             pin_info__user__subscription__end_date__gt=models.functions.Now(),
             status='published'
         ).select_related(
@@ -42,8 +42,21 @@ class PostManager(models.Manager):
 
     def with_subscription_info(self):
         return self.select_related(
-            'author', 'author_subscription', 'category'
+            'author', 'author__subscription', 'category'
         ).prefetch_related('pin_info')
+
+    def get_posts_for_feed(self):
+        """Возвращает посты для ленты с правильной сортировкой (сначала закрепленные)"""
+        return self.with_subscription_info().extra(
+            select={
+                'is_pinned_order': """
+                    CASE WHEN pin_info.id IS NOT NULL 
+                         AND pin_info.subscription.status = 'active'
+                         AND pin_info.user.subscription.end_date > NOW()
+                    THEN 0 ELSE 1 END
+                """
+            }
+        ).order_by('is_pinned_order', '-created_at')
 
 
 class Post(models.Model):
@@ -56,7 +69,7 @@ class Post(models.Model):
     title = models.CharField(max_length=200)
     slug = models.SlugField(max_length=200, unique=True, blank=True)
     content = models.TextField()
-    image = models.ImageField(upload_to = 'posts/', blank=True, null=True)
+    image = models.ImageField(upload_to='posts/', blank=True, null=True)
     category = models.ForeignKey(
         Category,
         on_delete=models.SET_NULL,
@@ -69,9 +82,9 @@ class Post(models.Model):
         on_delete=models.CASCADE,
         related_name='posts'
     )
-    status=models.CharField(
+    status = models.CharField(
         max_length=10,
-        choices='STATUS_CHOICES',
+        choices=STATUS_CHOICES,  # исправлено: было 'STATUS_CHOICES'
         default='published'
     )
     created_at = models.DateTimeField(auto_now_add=True)
@@ -84,65 +97,65 @@ class Post(models.Model):
         db_table = 'posts'
         verbose_name = 'Post'
         verbose_name_plural = 'Posts'
-        odering = ['-created_at']
+        ordering = ['-created_at']  # исправлено: было 'odering'
         indexes = [
             models.Index(fields=['-created_at']),
             models.Index(fields=['author', '-created_at']),
             models.Index(fields=['status', '-created_at']),
             models.Index(fields=['category', '-created_at']),
         ]
-        def __str__(self):
-            return self.title
-        
-        def save(self, *args, **kwargs):
-            if not self.slug:
-                self.slug = slugify(self.title)
-            super().save(*args, **kwargs)
-        
-        def get_absolute_url(self):
-            return reverse("post_detail", kwargs={"pk": self.slug})
-        
-        @property
-        def comments_count(self):
-            return self.comments.filter(is_active=True).count()
-        
-        @property
-        def is_pinned(self):
-            return hasattr(self, 'pin_info') and self.pin_info is not None   
-        
-        @property
-        def can_be_pinned_by_user(self):
+
+    def __str__(self):
+        return self.title
+    
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.title)
+        super().save(*args, **kwargs)
+    
+    def get_absolute_url(self):
+        return reverse("post_detail", kwargs={"slug": self.slug})
+    
+    @property
+    def comments_count(self):
+        return self.comments.filter(is_active=True).count()
+    
+    @property
+    def is_pinned(self):
+        return hasattr(self, 'pin_info') and self.pin_info is not None   
+    
+    @property
+    def can_be_pinned_by_user(self):
         # Это свойство не должно принимать параметры
         # Логика проверки должна быть вынесена в отдельный метод
-
-            if self.status != 'published':
-                return False
-            return True
+        if self.status != 'published':
+            return False
+        return True
+    
+    def can_be_pinned_by(self, user):
+        if not user or not user.is_authenticated:
+            return False
         
-        def can_be_pinned_by(self, user):
-            if not user or not user.is_authenticated:
-                return False
-            
-            if self.author != user:
-                return False
-            
-            if not hasattr(user, 'subscription') or not user.subscription.is_active():
-                return False
-            return True
+        if self.author != user:
+            return False
         
-        def increment_views(self):
-            self.views_count += 1
-            self.save(update_fields=['views_count'])
+        if not hasattr(user, 'subscription') or not user.subscription.is_active():
+            return False
+        return True
+    
+    def increment_views(self):
+        self.views_count += 1
+        self.save(update_fields=['views_count'])
 
-        def get_pinned_info(self):
-            if self.is_pinned:
-                return {
-                    'is_pinned': True,
-                    'pinned_at': self.pin_info.pinned_at,
-                    'pinned_by': {
-                        'id': self.pin_info.user.id,
-                        'username': self.pin_info.user.username,
-                        'has_active_subscription': self.pin_info.user.subscription.is_active
-                    }
+    def get_pinned_info(self):
+        if self.is_pinned:
+            return {
+                'is_pinned': True,
+                'pinned_at': self.pin_info.pinned_at,
+                'pinned_by': {
+                    'id': self.pin_info.user.id,
+                    'username': self.pin_info.user.username,
+                    'has_active_subscription': self.pin_info.user.subscription.is_active()
                 }
-            return {'is_pinned': False}
+            }
+        return {'is_pinned': False}

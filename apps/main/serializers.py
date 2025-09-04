@@ -3,11 +3,11 @@ from django.utils.text import slugify
 from rest_framework import serializers
 
 class CategorySerializer(serializers.ModelSerializer):
-    posts_count = serializers.SerializerMethodField
+    posts_count = serializers.SerializerMethodField()  # исправлено: убран лишний пробел и добавлены ()
 
     class Meta:
         model = Category
-        fields = ['id', 'name', 'slug', ' description', 'posts_count', 'created_at']
+        fields = ['id', 'name', 'slug', 'description', 'posts_count', 'created_at']  # исправлено: убран пробел в 'description'
         read_only_fields = ['created_at', 'slug']
 
     def get_posts_count(self, obj):
@@ -31,25 +31,26 @@ class PostListSerializer(serializers.ModelSerializer):
             'author', 'created_at', 'updated_at', 'status',
             'views_count', 'comments_count', 'is_pinned', 'pinned_info'
         ]   
-        read_only_field = [
+        read_only_fields = [  # исправлено: было read_only_field
             'slug', 'author', 'views_count'
         ]
 
-        def get_pinned_info(self, obj):
-            return obj.get_pinned_info()
-# we show only up to 200chars of post in post list
-        def to_representation(self, instance):
-            data = super().to_representaion(instance)
-            if len(data['content']) > 200:
-                data['content'] = data['content'][:200] + '..'
-            return data
+    def get_pinned_info(self, obj):
+        return obj.get_pinned_info()
+
+    # we show only up to 200chars of post in post list
+    def to_representation(self, instance):  # исправлено: было to_representaion
+        data = super().to_representation(instance)
+        if len(data['content']) > 200:
+            data['content'] = data['content'][:200] + '..'
+        return data
         
 class PostDetailSerializer(serializers.ModelSerializer):
     author_info = serializers.SerializerMethodField()
     category_info = serializers.SerializerMethodField()
     comments_count = serializers.ReadOnlyField()
     is_pinned = serializers.ReadOnlyField()
-    pinned_info = serializers.ReadOnlyField()
+    pinned_info = serializers.SerializerMethodField()
     can_pin = serializers.SerializerMethodField()
 
     class Meta:
@@ -63,31 +64,32 @@ class PostDetailSerializer(serializers.ModelSerializer):
             'slug', 'author', 'views_count'
         ]
 
-        def get_author_info(self, obj):
-            author = obj.author
+    def get_author_info(self, obj):
+        author = obj.author
+        return {
+            'id': author.id,
+            'username': author.username,
+            'full_name': author.full_name,
+            'avatar': author.avatar.url if author.avatar else None
+        }
+    
+    def get_category_info(self, obj):
+        if obj.category:
             return {
-                'id': author.id,
-                'username': author.username,
-                'full_name': author.full_name,
-                'avatar': author.avatar.url if author.avatar else None
+                'id': obj.category.id,
+                'name': obj.category.name,
+                'slug': obj.category.slug
             }
-        def get_category_info(self, obj):
-            if obj.category:
-                return {
-                    'id': obj.category.id,
-                    'name': obj.category.name,
-                    'slug': obj.category.slug
-                }
-            return None
-        
-        def get_pinned_info(self, obj):
-            return obj.get_pinned_info()
-        
-        def get_can_pin(self, obj):
-            request = self.context.get('request')
-            if not request or request.user.is_authenticated():
-                return False
-            return obj.can_be_pinned_by(request.user)
+        return None
+    
+    def get_pinned_info(self, obj):
+        return obj.get_pinned_info()
+    
+    def get_can_pin(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:  # исправлено: убрали ()
+            return False
+        return obj.can_be_pinned_by(request.user)
         
 class PostCreateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
@@ -103,4 +105,3 @@ class PostCreateUpdateSerializer(serializers.ModelSerializer):
         if 'title' in validated_data:
             validated_data['slug'] = slugify(validated_data['title'])
         return super().update(instance, validated_data)
-    

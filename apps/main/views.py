@@ -44,7 +44,7 @@ class PostListCreateView(generics.ListCreateAPIView):
             queryset = queryset.filter(status='published')
         else:
             queryset = queryset.filter(
-                Q(status='publsihed') | Q(author=self.request.user)
+                Q(status='published') | Q(author=self.request.user)
             )
 
         # Проверяем, нужна ли сортировка с учетом закрепленных постов
@@ -78,7 +78,7 @@ class PostDetailView(generics.RetrieveUpdateDestroyAPIView):
     lookup_field = ['slug']
 
     def get_serializer_class(self):
-        if self.request.method == ['PUT', 'PATCH']:
+        if self.request.method in ['PUT', 'PATCH']:
             return PostCreateUpdateSerializer
         return PostDetailSerializer
     def retrieve(self, request, *args, **kwargs):
@@ -88,7 +88,7 @@ class PostDetailView(generics.RetrieveUpdateDestroyAPIView):
             instance.increment_view()
         
         serializer = self.get_serializer(instance)
-        return Respone(serializer.data)
+        return Response(serializer.data)
     
 class MyPostsView(generics.ListAPIView):
     serializer_class = PostListSerializer
