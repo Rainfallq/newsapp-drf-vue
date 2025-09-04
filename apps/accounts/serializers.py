@@ -3,8 +3,6 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from .models import User
 
-
-
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(
         write_only=True,
@@ -74,7 +72,6 @@ class UserProfileSerializer(serializers.ModelSerializer):
         )
         read_only_fields = ('id', 'created_at', 'updated_at')
 
-
     def get_posts_count(self, obj):
         try:
             return obj.posts.count()
@@ -87,9 +84,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
         except AttributeError:
             return 0
 
-
 class UserUpdateSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = User
         fields = (
@@ -119,8 +114,10 @@ class ChangePasswordSerializer(serializers.Serializer):
     def validate(self, attrs):
         if attrs['new_password'] != attrs['new_password_confirm']:
             raise serializers.ValidationError(
-                {"new_password": "Password fields didn't not match"}
-                 )
+                {"new_password": "Password fields didn't match"}  # исправлено: убрал 'not'
+            )
+        return attrs  # добавлен return
+    
     def save(self):
         user = self.context['request'].user
         user.set_password(self.validated_data['new_password'])
