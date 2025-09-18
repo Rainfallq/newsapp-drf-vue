@@ -30,6 +30,7 @@ class CommentListCreateView(generics.ListCreateAPIView):
         if self.request.method == 'POST':
             return CommentCreateSerializer
         return CommentSerializer
+    
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context['request'] = self.request  # Передаём request в сериализатор
@@ -40,7 +41,7 @@ class CommentDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAuthorOrReadOnly]
     
     def get_serializer_class(self):
-        if self.request.method == ['PUT', 'PATCH']:  
+        if self.request.method in ['PUT', 'PATCH']:  
             return CommentUpdateSerializer
         return CommentDetailSerializer
     

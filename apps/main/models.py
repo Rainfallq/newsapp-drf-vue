@@ -46,7 +46,7 @@ class PostManager(models.Manager):
         ).prefetch_related('pin_info')
 
     def get_posts_for_feed(self):
-        """Возвращает посты для ленты с правильной сортировкой (сначала закрепленные)"""
+        """Возвращает посты для ленты c правильной сортировкой (сначала закрепленные)"""
         return self.with_subscription_info().extra(
             select={
                 'is_pinned_order': """
@@ -84,7 +84,7 @@ class Post(models.Model):
     )
     status = models.CharField(
         max_length=10,
-        choices=STATUS_CHOICES,  # исправлено: было 'STATUS_CHOICES'
+        choices=STATUS_CHOICES,
         default='published'
     )
     created_at = models.DateTimeField(auto_now_add=True)
@@ -97,7 +97,7 @@ class Post(models.Model):
         db_table = 'posts'
         verbose_name = 'Post'
         verbose_name_plural = 'Posts'
-        ordering = ['-created_at']  # исправлено: было 'odering'
+        ordering = ['-created_at']
         indexes = [
             models.Index(fields=['-created_at']),
             models.Index(fields=['author', '-created_at']),

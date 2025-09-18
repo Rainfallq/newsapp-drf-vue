@@ -10,7 +10,7 @@ class CommentAdmin(admin.ModelAdmin):
         )
     list_filter = ('created_at', 'updated_at', 'is_active')
     search_fields = ('content', 'post__title', 'author__username')
-    read_only_fields = ('created_at', 'updated_at')
+    readonly_fields = ('created_at', 'updated_at')
     raw_id_fields = ('author', 'post', 'parent')
     list_editable = ('is_active',)
     
@@ -28,16 +28,18 @@ class CommentAdmin(admin.ModelAdmin):
     )
 
     def post_title(self, obj):
-        return obj.post.title
+        return obj.post.title if obj.post else 'No post'
     post_title.short_description = 'Post Title'
 
     def content_preview(self, obj):
+        if not obj.content:
+            return 'No content'
         return obj.content[:50] + '...' if len(obj.content) > 50 else obj.content
     content_preview.short_description = 'Content Preview'
 
     def parent_comment(self, obj):
         if obj.parent: 
-            return f'reply to comment {obj.parent.id[:30]}...'
+            return f'reply to comment #{obj.parent.id}'
         return 'No parent'
     parent_comment.short_description = 'Parent Comment'
 

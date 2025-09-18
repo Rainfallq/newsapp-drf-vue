@@ -29,24 +29,24 @@ class CommentCreateSerializer(serializers.ModelSerializer):
         model = Comment
         fields = ['post', 'parent', 'content']
 
-        def validate_post(self, value):
-            if not Post.objects.filter(id=value.id, is_published=True).exists():
-                raise serializers.ValidationError(
-                    "Post does not exist or is not published.")
-            return value
+    def validate_post(self, value):
+        if not Post.objects.filter(id=value.id, status='published').exists():
+            raise serializers.ValidationError(
+                "Post does not exist or is not published.")
+        return value
         
-        def validate_parent(self, value):
-            if value:
-                post_data = self.initial_data.get('post')
-                if post_data:
-                    if value.post.id != int(post_data):
-                        raise serializers.ValidationError(
-                            "Parent comment must belong to the same post.")
-            return value
-        
-        def create(self, validated_data): 
-            validated_data['author'] = self.context['request'].user
-            return super().create(validated_data)
+    def validate_parent(self, value):
+        if value:
+            post_data = self.initial_data.get('post')
+            if post_data:
+                if value.post.id != int(post_data):
+                    raise serializers.ValidationError(
+                        "Parent comment must belong to the same post.")
+        return value
+    
+    def create(self, validated_data):
+        validated_data['author'] = self.context['request'].user
+        return super().create(validated_data)
         
 class CommentUpdateSerializer(serializers.ModelSerializer):
     class Meta:
@@ -59,10 +59,10 @@ class CommentDetailSerializer(CommentSerializer):
     class Meta(CommentSerializer.Meta):
         fields = CommentSerializer.Meta.fields + ['replies']
 
-        def get_replies(self, obj):
-            if obj.parent is None:
-                replies = obj.replies.filter(is_active = True).order_by('created_at')
-                return CommentSerializer(replies, many=True, context=self.context).data
-            return []
+    def get_replies(self, obj):
+        if obj.parent is None:
+            replies = obj.replies.filter(is_active = True).order_by('created_at')
+            return CommentSerializer(replies, many=True, context=self.context).data
+        return []
         
         
