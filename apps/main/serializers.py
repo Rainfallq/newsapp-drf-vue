@@ -3,11 +3,11 @@ from django.utils.text import slugify
 from rest_framework import serializers
 
 class CategorySerializer(serializers.ModelSerializer):
-    posts_count = serializers.SerializerMethodField()  # исправлено: убран лишний пробел и добавлены ()
+    posts_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Category
-        fields = ['id', 'name', 'slug', 'description', 'posts_count', 'created_at']  # исправлено: убран пробел в 'description'
+        fields = ['id', 'name', 'slug', 'description', 'posts_count', 'created_at'] 
         read_only_fields = ['created_at', 'slug']
 
     def get_posts_count(self, obj):
@@ -31,7 +31,7 @@ class PostListSerializer(serializers.ModelSerializer):
             'author', 'created_at', 'updated_at', 'status',
             'views_count', 'comments_count', 'is_pinned', 'pinned_info'
         ]   
-        read_only_fields = [  # исправлено: было read_only_field
+        read_only_fields = [
             'slug', 'author', 'views_count'
         ]
 
@@ -39,7 +39,7 @@ class PostListSerializer(serializers.ModelSerializer):
         return obj.get_pinned_info()
 
     # we show only up to 200chars of post in post list
-    def to_representation(self, instance):  # исправлено: было to_representaion
+    def to_representation(self, instance):
         data = super().to_representation(instance)
         if len(data['content']) > 200:
             data['content'] = data['content'][:200] + '..'
@@ -83,11 +83,11 @@ class PostDetailSerializer(serializers.ModelSerializer):
         return None
     
     def get_pinned_info(self, obj):
-        return obj.get_pinned_info()
+        return obj.get_pinned_info() 
     
     def get_can_pin(self, obj):
         request = self.context.get('request')
-        if not request or not request.user.is_authenticated:  # исправлено: убрали ()
+        if not request or not request.user.is_authenticated:  
             return False
         return obj.can_be_pinned_by(request.user)
         

@@ -14,6 +14,7 @@ from .serializers import (
 from .permissions import IsAuthorOrReadOnly
 
 class CategoryListCreateView(generics.ListCreateAPIView):
+    """API endpoint для списка категорий"""
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
@@ -23,20 +24,27 @@ class CategoryListCreateView(generics.ListCreateAPIView):
     ordering = ['name']
 
 class CategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """API endpoint для конкретной категории"""
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    lookup_field = 'slug'  # исправлено: убраны квадратные скобки
+    lookup_field = 'slug'
 
 class PostListCreateView(generics.ListCreateAPIView):
+    """
+    API endpoint для списка постов с поддержкой закрепленных постов.
+    Закрепленные посты выпадают первыми в списке
+    """
     serializer_class = PostListSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['author', 'category', 'status']
     search_fields = ['title', 'content']
     ordering_fields = ['title', 'created_at', 'updated_at', 'views_count']
     ordering = ['-created_at']
 
     def get_queryset(self):
+
         queryset = Post.objects.select_related('author', 'category')
 
         if not self.request.user.is_authenticated: 
@@ -70,13 +78,14 @@ class PostListCreateView(generics.ListCreateAPIView):
         if hasattr(response, 'data') and 'results' in response.data:
             pinned_count = sum(1 for post in response.data['results'] if post.get('is_pinned', False))
             response.data['pinned_count'] = pinned_count
-        return response  # добавлен return
+        return response
 
 class PostDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """API endpoint для конкретного поста"""
     queryset = Post.objects.select_related('author', 'category')
     serializer_class = PostDetailSerializer
     permission_classes = [IsAuthorOrReadOnly]
-    lookup_field = 'slug'  # исправлено: убраны квадратные скобки
+    lookup_field = 'slug' 
 
     def get_serializer_class(self):
         if self.request.method in ['PUT', 'PATCH']:
@@ -87,12 +96,13 @@ class PostDetailView(generics.RetrieveUpdateDestroyAPIView):
         instance = self.get_object()
 
         if request.method == 'GET':
-            instance.increment_views()  # исправлено: было increment_view()
+            instance.increment_views() 
         
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
     
 class MyPostsView(generics.ListAPIView):
+    """API endpoint для личных постов"""
     serializer_class = PostListSerializer
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -111,19 +121,38 @@ class MyPostsView(generics.ListAPIView):
 def post_by_category(request, category_slug):
     category = get_object_or_404(Category, slug=category_slug)
 
-    posts = Post.objects.filter(  # упрощено: убрал with_subscription_info() пока нет subscription модели
+    posts = Post.objects.with_subscription_info().filter(  # упрощено: убрал with_subscription_info() пока нет subscription модели
         category=category,
         status='published'
-    ).select_related('author', 'category')
-
-    # Временно упростил сортировку до появления subscription модели
-    posts = posts.order_by('-created_at')
-
-    serializer = PostListSerializer(
-        posts, 
-        many=True, 
-        context={'request': request}
     )
+
+    from django.db.models import Case, When, Value, DateTimeField, BooleanField
+    from django.utils import timezone
+
+    posts = posts.annotate(
+        effective_date=Case(
+            When(
+                pin_info__isnull=False,
+                pin_info__user__subscription__status='active',
+                pin_info__user__subscription__end_date__gt=timezone.now(),
+                then='pin_info__pinned_at'
+            ),
+            default='created_at',
+            output_field=DateTimeField()
+        ),
+    is_pinned_flag=Case(
+            When(
+                pin_info__isnull=False,
+                pin_info__user_subscription__status='active',
+                pin_info__user__subscription__end_date__gt=timezone.now(),
+                then=Value(True)
+            ),
+            default=Value(False),
+            output_field=BooleanField
+        )
+    ).order_by('-is_pinned_flag', 'effective_date', '-created_at')
+
+    serializer = PostListSerializer(posts, many=True, context={'request': request})
 
     return Response({
         'category': CategorySerializer(category).data,
@@ -134,18 +163,19 @@ def post_by_category(request, category_slug):
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
 def popular_posts(request):
-    posts = Post.objects.filter(  # упрощено
+    posts = Post.objects.with_subscription_info().filter(
         status='published',
-    ).select_related('author', 'category').order_by('-views_count')[:10]
+    ).order_by('-views_count')[:10]
 
     serializer = PostListSerializer(posts, many=True, context={'request': request})
+
     return Response(serializer.data)
 
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
 def pinned_posts_only(request):
-    # Временно возвращаем пустой результат, пока нет pin_info модели
-    posts = Post.objects.none()
+
+    posts = Post.objects.pinned_posts()
     
     serializer = PostListSerializer(
         posts,
@@ -160,9 +190,9 @@ def pinned_posts_only(request):
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
 def recent_posts(request):
-    posts = Post.objects.filter(  # упрощено
+    posts = Post.objects.with_subscription_info().filter(
         status='published'
-    ).select_related('author', 'category').order_by('-created_at')[:10]
+    ).order_by('-created_at')[:10]
 
     serializer = PostListSerializer(
         posts, 
@@ -174,35 +204,42 @@ def recent_posts(request):
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
 def featured_posts(request):
+    """
+    Рекомендуемые посты для главной страницы:
+    - Закрепленные посты (максимум 3)
+    - Популярные посты за последнюю неделю
+    """
     from django.utils import timezone
     from datetime import timedelta
 
-    # Временно упростил до появления pin_info модели
-    pinned_posts = Post.objects.none()
+
+    pinned_posts = Post.objects.pinned_posts()[:3]
 
     # Популярные посты за неделю
     week_ago = timezone.now() - timedelta(days=7)
-    popular_posts = Post.objects.filter(
+    popular_posts = Post.objects.with_subscription_info().filter(
         status='published',
         created_at__gte=week_ago
-    ).select_related('author', 'category').order_by('-views_count')[:6]
+    ).exclude(
+        id__in=[post.id for post in pinned_posts]
+    ).order_by('-views_count')[:6]
     
     pinned_serializer = PostListSerializer(
         pinned_posts,
         many=True,
-        context={'request': request}  # исправлено: было 'context': request
+        context={'request': request}
     )
 
     popular_serializer = PostListSerializer(
         popular_posts,
         many=True,
-        context={'request': request}  # исправлено: было 'context': request
+        context={'request': request}
     )
 
     return Response({
         'pinned_posts': pinned_serializer.data,
         'popular_posts': popular_serializer.data,
-        'total_pinned': 0  # временно, пока нет pin_info
+        'total_pinned': Post.objects.pinned_posts().count()
     })
 
 @api_view(['POST'])
@@ -210,7 +247,39 @@ def featured_posts(request):
 def toggle_post_pinned_status(request, slug):
     post = get_object_or_404(Post, slug=slug, author=request.user, status='published')
 
-    # Временно отключено до появления subscription модели
-    return Response({
-        'error': 'Pin functionality not implemented yet'
-    }, status=status.HTTP_501_NOT_IMPLEMENTED)
+    #Проверяем подписку
+    if not hasattr(request.user, 'subscription') or not request.user.subscription.is_active:
+        return Response({
+            'error': 'Subscription is required to pin posts'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        from apps.subscribe.models import PinnedPost
+
+        #Проверяем если пост закреплен
+        if post.is_pinned:
+            #Открепляем
+            post.pin_info.delete()
+            message='Post unpinned successfully'
+            is_pinned=False
+        else:
+            #Удаляем существующий закрепленный пост пользователя, если есть
+            if hasattr(request.user, 'pinned_post'):
+                request.user.pinned_post.delete()
+            
+            #Закрепляем новый пост
+            PinnedPost.objects.create(user=request.user, post=post)
+            message='Post pinned successfully'
+            is_pinned=True
+
+        return Response({
+            'message': message,
+            'is_pinned': is_pinned,
+            'post': PostDetailSerializer(post, context={'request': request}).data
+        })
+    
+    except Exception as e:
+        return Response({
+            'error': str(e)
+        }, status=status.HTTP_400_BAD_REQUEST)
+    

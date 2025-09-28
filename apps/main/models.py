@@ -24,6 +24,7 @@ class Category(models.Model):
         super().save(*args, **kwargs)
 
 class PostManager(models.Manager):
+    """Менеджер для модели Post с дополнительными методами"""
     def published(self):
         return self.filter(status='published')
 
@@ -60,7 +61,7 @@ class PostManager(models.Manager):
 
 
 class Post(models.Model):
-    
+    """Модель поста с поддержкой закрепления поста"""
     STATUS_CHOICES = [
         ('draft', 'Draft'),
         ('published', 'Published'),

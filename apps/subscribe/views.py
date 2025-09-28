@@ -13,7 +13,6 @@ from .serializers import (
     SubscriptionCreateSerializer,
     PinnedPostSerializer,
     SubscriptionHistorySerializer,
-    PinnedPostCreateSerializer,
     UserSubscriptionStatusSerializer,
     PinPostSerializer,
     UnpinPostSerializer
@@ -102,15 +101,15 @@ class PinnedPostView(generics.RetrieveUpdateDestroyAPIView):
     
 
 @api_view(['GET'])
-@permission_classes([permissions.IsAuthenticated])
-def subcription_status(request):
+@permission_classes([permissions.IsAuthenticated])  
+def subscription_status(request):
     serializer = UserSubscriptionStatusSerializer(request.user)
     return Response(serializer.data)
 
 
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
-def pin_posts(request):
+def pin_post(request):
     serializer = PinPostSerializer(data=request.data, context={'request': request})
 
     if serializer.is_valid():
@@ -151,7 +150,7 @@ def pin_posts(request):
 
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
-def unpin_posts(request):
+def unpin_post(request):
     serializer = UnpinPostSerializer(data=request.data, context={'request': request})
 
     if serializer.is_valid():
@@ -203,7 +202,7 @@ def cancel_subscription(request):
 
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
-def pinned_post_list(request):
+def pinned_posts_list(request):
     pinned_posts = PinnedPost.objects.select_related(
         'post', 'post__author', 'post__category', 'post__subscription'
     ).filter(
@@ -240,7 +239,7 @@ def pinned_post_list(request):
 
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
-def can_pin_posts(request, post_id):
+def can_pin_post(request, post_id):
     try:
         post = get_object_or_404(Post, id=post_id, status='published')
 

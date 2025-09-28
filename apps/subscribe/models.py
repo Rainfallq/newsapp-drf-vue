@@ -15,7 +15,7 @@ class SubscriptionPlan(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta: 
-        db_table = "subcriptions_plan"
+        db_table = "subscriptions_plan"
         verbose_name = "Subscription Plan"
         verbose_name_plural = "Subscription Plans"
         ordering = ['price']
@@ -41,7 +41,7 @@ class Subscription(models.Model):
         on_delete=models.PROTECT,
         related_name='subscriptions'
     )
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     start_date = models.DateTimeField()
     end_date = models.DateTimeField()
     stripe_subscription_id = models.CharField(max_length=255, null=True, blank=True)
@@ -62,7 +62,14 @@ class Subscription(models.Model):
     def __str__(self):
         return f"Subscription of {self.user.username} - {self.plan.name} ({self.status})"
     
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._previous_status = self.status
 
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        self._previous_status = self.status
+        
     @property
     def is_active(self):
         return (
@@ -76,7 +83,7 @@ class Subscription(models.Model):
         delta = self.end_date - timezone.now()
         return max(0, delta.days)
 
-    @property
+
     def extend_subscription(self, days=30):
         if self.is_active:
             self.end_date += timedelta(days=days)
@@ -123,17 +130,17 @@ class PinnedPost(models.Model):
             models.Index(fields=['pinned_at']),
         ]
 
-        def __str__(self):
-            return f"{self.user.username} pinned: {self.post.title}"
+    def __str__(self):
+        return f"{self.user.username} pinned: {self.post.title}"
         
-        def save(self, *args, **kwargs):
-            if not hasattr(self.user, 'subscription') or not self.user.subscription.is_active:
-                raise ValueError("User must have an active subscription to pin posts.")
+    def save(self, *args, **kwargs):
+        if not hasattr(self.user, 'subscription') or not self.user.subscription.is_active:
+            raise ValueError("User must have an active subscription to pin posts.")
             
-            if self.post.author != self.user:
-                raise ValueError("Users can only pin their own posts.")
+        if self.post.author != self.user:
+            raise ValueError("Users can only pin their own posts.")
 
-            super().save(*args, **kwargs)
+        super().save(*args, **kwargs)
 
 class SubscriptionHistory(models.Model):
     ACTION_CHOICES = [
