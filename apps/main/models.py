@@ -140,7 +140,7 @@ class Post(models.Model):
         if self.author != user:
             return False
         
-        if not hasattr(user, 'subscription') or not user.subscription.is_active():
+        if not hasattr(user, 'subscription') or not user.subscription.is_active:
             return False
         return True
     

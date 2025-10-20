@@ -121,7 +121,7 @@ class MyPostsView(generics.ListAPIView):
 def post_by_category(request, category_slug):
     category = get_object_or_404(Category, slug=category_slug)
 
-    posts = Post.objects.with_subscription_info().filter(  # упрощено: убрал with_subscription_info() пока нет subscription модели
+    posts = Post.objects.with_subscription_info().filter(
         category=category,
         status='published'
     )
@@ -143,12 +143,12 @@ def post_by_category(request, category_slug):
     is_pinned_flag=Case(
             When(
                 pin_info__isnull=False,
-                pin_info__user_subscription__status='active',
+                pin_info__user__subscription__status='active',
                 pin_info__user__subscription__end_date__gt=timezone.now(),
                 then=Value(True)
             ),
             default=Value(False),
-            output_field=BooleanField
+            output_field=BooleanField()
         )
     ).order_by('-is_pinned_flag', 'effective_date', '-created_at')
 

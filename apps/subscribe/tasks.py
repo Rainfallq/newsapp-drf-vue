@@ -60,7 +60,7 @@ def send_subscription_expiry_reminder():
                 message=f'Dear {subscription.user.get_full_name() or subscription.user.username}, \n\n'
                         f'Your {subscription.plan.name} subscription will expire on {subscription.end_date.strftime("%B %d, %Y")}.\n\n'
                         f'To continue enjoying premium features, please renew your subscription.\n\n'
-                        f'Best Regards, /nNews Site Team',
+                        f'Best Regards, \nNews Site Team',
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 recipent_list=[subscription.user.email],
                 fail_silently=True

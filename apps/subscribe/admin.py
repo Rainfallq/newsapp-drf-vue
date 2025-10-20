@@ -207,6 +207,6 @@ class SubscriptionHistoryAdmin(admin.ModelAdmin):
 
     # Дополнительные настройки админки
 
-admin.site.header = "News Site Administration"
+admin.site.site_header = "News Site Administration"
 admin.site.site_title = "News Site Admin"
 admin.site.index_title = "Welcome to News Site Administration"

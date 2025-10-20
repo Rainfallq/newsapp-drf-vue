@@ -64,7 +64,7 @@ class Subscription(models.Model):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._previous_status = self.status
+        self._previous_status = self.status if self.pk else None
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
@@ -85,6 +85,9 @@ class Subscription(models.Model):
 
 
     def extend_subscription(self, days=30):
+        if self.status == 'cancelled':
+            raise ValueError('Cannot extend cancelled subscription. Please reactivate first')
+        
         if self.is_active:
             self.end_date += timedelta(days=days)
         else:
@@ -134,11 +137,14 @@ class PinnedPost(models.Model):
         return f"{self.user.username} pinned: {self.post.title}"
         
     def save(self, *args, **kwargs):
-        if not hasattr(self.user, 'subscription') or not self.user.subscription.is_active:
-            raise ValueError("User must have an active subscription to pin posts.")
+        from django.db import transaction
+        with transaction.atomic():
+            user = type(self.user).objects.select_for_update().get(pk=self.user.pk)
+            if not hasattr(self.user, 'subscription') or not self.user.subscription.is_active:
+                raise ValueError("User must have an active subscription to pin posts.")
             
-        if self.post.author != self.user:
-            raise ValueError("Users can only pin their own posts.")
+            if self.post.author != self.user:
+                raise ValueError("Users can only pin their own posts.")
 
         super().save(*args, **kwargs)
 
@@ -168,7 +174,7 @@ class SubscriptionHistory(models.Model):
         verbose_name_plural = 'Subscription Histories'
         ordering = ['-created_at']
 
-        def __str__(self):
-            return f"{self.subscription.user.username} - {self.action}"
+    def __str__(self):
+        return f"{self.subscription.user.username} - {self.action}"
         
         

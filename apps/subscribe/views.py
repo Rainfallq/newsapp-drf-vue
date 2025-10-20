@@ -10,7 +10,6 @@ from .models import SubscriptionPlan, Subscription, PinnedPost, SubscriptionHist
 from .serializers import (
     SubscriptionPlanSerializer, 
     SubscriptionSerializer, 
-    SubscriptionCreateSerializer,
     PinnedPostSerializer,
     SubscriptionHistorySerializer,
     UserSubscriptionStatusSerializer,
@@ -174,7 +173,7 @@ def cancel_subscription(request):
     try:
         subscription = request.user.subscription
 
-        if not subscription.is_active():
+        if not subscription.is_active:
             return Response({
                 'error': 'No active subscription found'
             }, status=status.HTTP_404_NOT_FOUND)
@@ -204,7 +203,7 @@ def cancel_subscription(request):
 @permission_classes([permissions.AllowAny])
 def pinned_posts_list(request):
     pinned_posts = PinnedPost.objects.select_related(
-        'post', 'post__author', 'post__category', 'post__subscription'
+        'post', 'post__author', 'post__category', 'user__subscription'
     ).filter(
         user__subscription__status='active',
         user__subscription__end_date__gt=timezone.now(),
@@ -218,7 +217,7 @@ def pinned_posts_list(request):
             'id': post.id,
             'title': post.title,
             'slug': post.slug,
-            'content': post.content[::200] + '...' if len(post.content) > 200 else post.content,
+            'content': post.content[:200] + '...' if len(post.content) > 200 else post.content,
             'image': post.image.url if post.image else None,
             'category': post.category.name if post.category else None,
             'author': {
@@ -227,13 +226,13 @@ def pinned_posts_list(request):
                 'full_name': post.author.full_name
             },
             'views_count': post.views_count,
-            'comments_count': post.views.comments_count,
+            'comments_count': post.comments_count,
             'created_at': post.created_at,
-            'pinned_at': post.pinned_at,
+            'pinned_at': pinned_post.pinned_at,
             'is_pinned': True
         })
     return Response({
-        'count': int(posts_data),
+        'count': len(posts_data),
         'results': posts_data,
     })
 

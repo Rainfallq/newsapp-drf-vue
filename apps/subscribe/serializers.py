@@ -40,15 +40,15 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'user', 'status', 'start_date', 'end_date',
-                            'created_ad', 'updated_at']
+                            'created_at', 'updated_at']
         
-        def get_user_info(self, obj):
-            return {
-                'id': obj.user.id,
-                'username': obj.user.username,
-                'full_name': obj.user.full_name,
-                'email': obj.user.email,
-            }
+    def get_user_info(self, obj):
+        return {
+            'id': obj.user.id,
+            'username': obj.user.username,
+            'full_name': obj.user.full_name,
+            'email': obj.user.email,
+        }
         
 class SubscriptionCreateSerializer(serializers.ModelSerializer):
     class Meta:
@@ -63,7 +63,7 @@ class SubscriptionCreateSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         user = self.context['request'].user
 
-        if hasattr(user, 'subscription') and user.subscription.is_active():
+        if hasattr(user, 'subscription') and user.subscription.is_active:
             raise serializers.ValidationError({
                 'non_field_errors': ['subscription is already active']
                 })
@@ -86,7 +86,7 @@ class PinnedPostSerializer(serializers.ModelSerializer):
         fields = ['id', 'post', 'post_info', 'pinned_at']
         read_only_fields = ['id', 'pinned_at']
 
-        def get_post_info(self, obj):
+    def get_post_info(self, obj):
             return {
                 'id': obj.post.id,
                 'title': obj.post.title,
@@ -97,30 +97,30 @@ class PinnedPostSerializer(serializers.ModelSerializer):
                 'created_at': obj.post.created_at,
             }
         
-        def validate(self, value):
-            user = self.context['request'].user
+    def validate_post(self, value):
+        user = self.context['request'].user
 
-            if value.author != user:
-                raise serializers.ValidationError('You can only pin your own posts.')
-            
-            if value.status != 'published':
-                raise serializers.ValidationError('Only published posts can be pinned.')
-            
-            return value
+        if value.author != user:
+            raise serializers.ValidationError('You can only pin your own posts.')
         
-        def validate(self, attrs):
-            user = self.context['request'].user
+        if value.status != 'published':
+            raise serializers.ValidationError('Only published posts can be pinned.')
+            
+        return value
+        
+    def validate(self, attrs):
+        user = self.context['request'].user
 
-            if not hasattr(user, 'subscription') or not user.subscription.is_active():
-                raise serializers.ValidationError({
-                    'non_field_errors': ['You must have an active subscription to pin posts.']
-                })
+        if not hasattr(user, 'subscription') or not user.subscription.is_active():
+            raise serializers.ValidationError({
+                'non_field_errors': ['You must have an active subscription to pin posts.']
+            })
             
-            return attrs 
+        return attrs 
         
-        def create(self, validated_data):
-            validated_data['user'] = self.context['request'].user
-            return super().create(validated_data)
+    def create(self, validated_data):
+        validated_data['user'] = self.context['request'].user
+        return super().create(validated_data)
             
             
 class SubscriptionHistorySerializer(serializers.ModelSerializer):
@@ -132,8 +132,8 @@ class SubscriptionHistorySerializer(serializers.ModelSerializer):
 class UserSubscriptionStatusSerializer(serializers.Serializer):
     has_subscription = serializers.BooleanField()
     is_active = serializers.BooleanField()
-    subscription = SubscriptionSerializer()
-    pinned_post = PinnedPostSerializer()
+    subscription = SubscriptionSerializer(required=False, allow_null=True)
+    pinned_post = PinnedPostSerializer(required=False, allow_null=True)
     can_pin_posts = serializers.BooleanField()
             
     def to_representation(self, instance):
