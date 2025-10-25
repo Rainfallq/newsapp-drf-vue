@@ -125,9 +125,9 @@ def pin_post(request):
                     }, status=status.HTTP_403_FORBIDDEN)                
 
                 #проверяем подписку
-                if not hasattr(request.user, 'subscription') or not request.user.subcription.is_active:
+                if not hasattr(request.user, 'subscription') or not request.user.subscription.is_active:
                     return Response({
-                        'error': 'Active subcsription is needed to be able to pin posts'
+                        'error': 'Active subscsription is needed to be able to pin posts'
                     }, status=status.HTTP_403_FORBIDDEN)
                 
                 #если уже есть закрепленный пост, удаляем
@@ -191,8 +191,8 @@ def cancel_subscription(request):
             )
 
             return Response({
-                'message': 'No subscription found'
-            }, status=status.HTTP_404_NOT_FOUND)
+                'message': 'Subscription cancelled successfully'
+            }, status=status.HTTP_200_OK)
         
     except Subscription.DoesNotExist:
         return Response({
@@ -252,7 +252,7 @@ def can_pin_post(request, post_id):
         }
         
         if checks['has_subscription']:
-            checks['subscription_active'] = request.user.subcription.is_active
+            checks['subscription_active'] = request.user.subscription.is_active
 
         checks['can_pin'] = (
             checks['is_own_post'] and

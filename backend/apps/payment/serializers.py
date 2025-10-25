@@ -60,7 +60,7 @@ class PaymentCreateSerializer(serializers.Serializer):
         try:
             plan = SubscriptionPlan.objects.get(
                 id=value,
-                status='active'
+                is_active=True
             )
         except SubscriptionPlan.DoesNotExist:
             raise serializers.ValidationError('Subscription plan not found or inactive')
@@ -128,7 +128,7 @@ class RefundSerializer(serializers.ModelSerializer):
             'user': obj.payment.user.username
         }
         
-    def created_by_info(self, obj):
+    def get_created_by_info(self, obj):
         """Возвращает информацию о пользователе создавшем возврат"""
         if obj.created_by:
             return {

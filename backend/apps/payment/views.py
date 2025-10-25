@@ -1,5 +1,6 @@
 import stripe 
 import json
+import logging
 from django.conf import settings
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -23,6 +24,8 @@ from .serializers import (
 )
 from .services import StripeService, PaymentService, WebhookService
 from apps.subscribe.models import SubscriptionPlan
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -52,43 +55,77 @@ class PaymentDetailView(generics.RetrieveAPIView):
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
 def create_checkout_session(request):
-    """Создает stripe checkout session для оплаты подписки"""     
-    serializer = PaymentCreateSerializer(data=request.data, context={'context': request})
+    """Создает stripe checkout session для оплаты подписки"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Логируем входящие данные
+    logger.info(f"=== Create Checkout Session Request ===")
+    logger.info(f"User: {request.user.id} ({request.user.username})")
+    logger.info(f"Request data: {request.data}")
+    logger.info(f"Request content type: {request.content_type}")
+    
+    serializer = PaymentCreateSerializer(data=request.data, context={'request': request})
+    
+    if not serializer.is_valid():
+        logger.error(f"Serializer validation errors: {serializer.errors}")
+        logger.error(f"Validated data: {serializer.validated_data if hasattr(serializer, 'validated_data') else 'N/A'}")
+        return Response({
+            'error': 'Validation failed',
+            'details': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    logger.info(f"Serializer validated data: {serializer.validated_data}")
 
-    if serializer.is_valid():
-        try:
-            with transaction.atomic():
-                plan_id = serializer.validated_data['subscription_plan_id']
-                plan = get_object_or_404(SubscriptionPlan, id=plan_id, is_active=True)
+    try:
+        with transaction.atomic():
+            plan_id = serializer.validated_data['subscription_plan_id']
+            plan = get_object_or_404(SubscriptionPlan, id=plan_id, is_active=True)
+            
+            logger.info(f"Found plan: {plan.id} - {plan.name}")
 
-                #Создаем платеж и подписку
-                payment, subscription = PaymentService.create_subscription_payment(request.user, plan)
+            # Создаем платеж и подписку
+            payment, subscription = PaymentService.create_subscription_payment(request.user, plan)
+            
+            logger.info(f"Created payment: {payment.id}, subscription: {subscription.id}")
 
-                #Получаем URLs из запроса
-                success_url = serializer.validated_data.get(
-                    'success_url',
-                    f"{settings.FRONTEND_URL}/payment/success?session_id={{CHECKOUT_SESSION_ID}}"
-                )
-                cancel_url = serializer.validated_data.get(
-                    'cancel_url',
-                    f"{settings.FRONTEND_URL}/payment/cancel"
-                )
+            # Получаем URLs из запроса
+            success_url = serializer.validated_data.get(
+                'success_url',
+                f"{settings.FRONTEND_URL}/subscription/success?session_id={{CHECKOUT_SESSION_ID}}"
+            )
+            cancel_url = serializer.validated_data.get(
+                'cancel_url',
+                f"{settings.FRONTEND_URL}/subscription/cancel"
+            )
+            
+            logger.info(f"Success URL: {success_url}")
+            logger.info(f"Cancel URL: {cancel_url}")
 
-                #Создаем stripe session
-                session_data = StripeService.create_checkout_session(payment, success_url, cancel_url)
-                if session_data:
-                    response_serializer = StripeCheckoutSessionSerializer(session_data)
-                    return Response(response_serializer.data, status=status.HTTP_201_CREATED)
-                else:
-                    return Response({
-                        'error': 'Failed to create checkout session'
-                    }, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({
-                'error': str(e)
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            # Создаем stripe session
+            session_data = StripeService.create_checkout_session(payment, success_url, cancel_url)
+            
+            if session_data:
+                logger.info(f"Stripe session created: {session_data}")
+                response_serializer = StripeCheckoutSessionSerializer(session_data)
+                return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+            else:
+                logger.error("Failed to create Stripe session - session_data is None")
+                return Response({
+                    'error': 'Failed to create checkout session'
+                }, status=status.HTTP_400_BAD_REQUEST)
+                
+    except SubscriptionPlan.DoesNotExist:
+        logger.error(f"Subscription plan {plan_id} not found")
+        return Response({
+            'error': 'Subscription plan not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Error creating checkout session: {str(e)}", exc_info=True)
+        return Response({
+            'error': 'An error occurred',
+            'details': str(e)
+        }, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
@@ -252,7 +289,7 @@ def stripe_webhook(request):
         #Не верная подпись
         return HttpResponse(status=400)
     
-    success = StripeService.process_stripe_webhook(event)  
+    success = WebhookService.process_stripe_webhook(event)  
     if success:
         return HttpResponse(status=200)
     else:
@@ -279,7 +316,7 @@ def payment_analytics(request):
     monthly_revenue = Payment.objects.filter(created_at__gte=last_month, status='succeeded').aggregate(total=Sum('amount'))['total'] or 0
 
     #Средний чек
-    avg_payment = Payment.objects.filter(status='succeeded').aggregate(avg=Avg('amount'))['average'] or 0
+    avg_payment = Payment.objects.filter(status='succeeded').aggregate(avg=Avg('amount'))['avg'] or 0
 
     #Статистика по подпискам
     active_subscriptions = Payment.objects.filter(status='succeeded', subscription__status='active').count()

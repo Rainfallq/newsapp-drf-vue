@@ -11,6 +11,10 @@ from apps.subscribe.models import Subscription, SubscriptionPlan, SubscriptionHi
 logger = logging.getLogger(__name__)
 
 # Настройка Stripe
+if not settings.STRIPE_SECRET_KEY:
+    logger.error("STRIPE_SECRET_KEY is not configured")
+    raise ValueError("STRIPE_SECRET_KEY is required")
+
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
@@ -33,6 +37,9 @@ class StripeService:
         except stripe.error.StripeError as e:
             logger.error(f"Error creating Stripe customer: {e}")
             return None
+        except Exception as e:
+            logger.error(f"Unexpected error creating Stripe customer: {e}")
+            return None
         
     @staticmethod
     def create_checkout_session(payment: Payment, success_url: str, cancel_url: str) -> Optional[Dict]:
@@ -40,13 +47,16 @@ class StripeService:
         try:
             if not payment.stripe_customer_id:
                 customer_id = StripeService.create_customer(payment.user)
-                if customer_id:
-                    payment.stripe_customer_id = customer_id
-                    payment.save()
+                if not customer_id:
+                    logger.error(f"Failed to create Stripe customer for user {payment.user.id}")
+                    payment.mark_as_failed("Failed to create Stripe customer")
+                    return None
+                payment.stripe_customer_id = customer_id
+                payment.save()
 
             session = stripe.checkout.Session.create(
                 customer=payment.stripe_customer_id,
-                payment_methods=['card'],
+                payment_method_types=['card'],
                 line_items=[{   
                     'price_data': {
                         'currency': payment.currency.lower(),
@@ -64,7 +74,7 @@ class StripeService:
                 metadata={
                     'payment_id': payment.id,
                     'user_id': payment.user.id,
-                    'subscription_id': payment.subscription.id if payment.subscription else None,
+                    'subscription_id': payment.subscription.id,
                 }
             )
 
@@ -80,8 +90,12 @@ class StripeService:
             }
     
         except stripe.error.StripeError as e:
-            logger.error(f"Error creating checkout session: {e}")
-            payment.mark_as_failed(str(e))
+            logger.error(f"Stripe error creating checkout session: {e}")
+            payment.mark_as_failed(f"Stripe error: {str(e)}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error creating checkout session: {e}")
+            payment.mark_as_failed(f"Unexpected error: {str(e)}")
             return None
 
     @staticmethod
@@ -155,30 +169,51 @@ class PaymentService:
     @staticmethod
     def create_subscription_payment(user, plan: SubscriptionPlan) -> Tuple[Payment, Subscription]:
         """Создает платеж для подписки"""
-        #Создаем подписку
-        subscription = Subscription.objects.create(
-            user=user,
-            plan=plan,
-            status='pending',
-            start_date=timezone.now(),
-            end_date=timezone.now() #Будет обновлено после оплаты
-        )
+        from django.utils import timezone
+        from datetime import timedelta
+    
+        # Проверяем существующую подписку
+        try:
+            subscription = Subscription.objects.get(user=user)
+            # Обновляем существующую подписку
+            subscription.plan = plan
+            subscription.status = 'pending'
+            subscription.start_date = timezone.now()
+            subscription.end_date = timezone.now()  # Будет обновлено после оплаты
+            subscription.save()
+        
+            # Записываем в историю
+            SubscriptionHistory.objects.create(
+                subscription=subscription,
+                action='renewed',
+                description=f'Subscription renewed for plan {plan.name}'
+            )
+        
+        except Subscription.DoesNotExist:
+            # Создаем новую подписку
+            subscription = Subscription.objects.create(
+                user=user,
+                plan=plan,
+                status='pending',
+                start_date=timezone.now(),
+                end_date=timezone.now()  # Будет обновлено после оплаты
+            )
+        
+            # Записываем в историю
+            SubscriptionHistory.objects.create(
+                subscription=subscription,
+                action='created',
+                description=f'Subscription created for plan {plan.name}'
+            )
 
-        #Создаем платеж
+        # Создаем платеж
         payment = Payment.objects.create(
             user=user,
             subscription=subscription,
             amount=plan.price,
             currency='USD',
-            description = f"Subscription to {plan.name}",
+            description=f"Subscription to {plan.name}",
             payment_method='stripe'
-        )
-
-        #Записываем в историю
-        SubscriptionHistory.objects.create(
-            subscription=subscription,
-            action='created',
-            description=f"Subscription created for plan {plan.name}"
         )
 
         return payment, subscription
@@ -221,7 +256,7 @@ class PaymentService:
                 SubscriptionHistory.objects.create(
                     subscription=payment.subscription,
                     action='payment_failed',
-                    description='payment failed: {reason}',
+                    description=f'payment failed: {reason}',
                     metadata={'payment_id': payment.id}
                 )
             logger.info(f"Payment {payment.id} marked as failed")

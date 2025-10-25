@@ -111,6 +111,10 @@ class Subscription(models.Model):
         self.end_date = self.start_date + timedelta(days=self.plan.duration_days)
         self.save()
 
+    def deactivate(self):
+        self.status = 'expired'
+        self.save()
+
 class PinnedPost(models.Model):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,

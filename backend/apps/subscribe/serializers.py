@@ -111,7 +111,7 @@ class PinnedPostSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         user = self.context['request'].user
 
-        if not hasattr(user, 'subscription') or not user.subscription.is_active():
+        if not hasattr(user, 'subscription') or not user.subscription.is_active:
             raise serializers.ValidationError({
                 'non_field_errors': ['You must have an active subscription to pin posts.']
             })
@@ -140,7 +140,7 @@ class UserSubscriptionStatusSerializer(serializers.Serializer):
         user = instance
         has_subscription = hasattr(user, 'subscription')
         subscription = user.subscription if has_subscription else None
-        is_active = user.subscription if subscription else False
+        is_active = subscription.is_active if subscription else False
         pinned_post = getattr(user, 'pinned_post', None) if is_active else None
 
         return {
@@ -170,7 +170,7 @@ class PinPostSerializer(serializers.Serializer):
     
     def validate(self, attrs):
         user = self.context['request'].user
-        if not hasattr(user, 'subscription') or not user.subscription.is_active():
+        if not hasattr(user, 'subscription') or not user.subscription.is_active:
             raise serializers.ValidationError({
                 'non_field_errors': ['You must have an active subscription to pin posts.']
             })
