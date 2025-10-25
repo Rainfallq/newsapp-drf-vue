@@ -150,13 +150,16 @@ class Post(models.Model):
 
     def get_pinned_info(self):
         if self.is_pinned:
-            return {
-                'is_pinned': True,
-                'pinned_at': self.pin_info.pinned_at,
-                'pinned_by': {
-                    'id': self.pin_info.user.id,
-                    'username': self.pin_info.user.username,
-                    'has_active_subscription': self.pin_info.user.subscription.is_active()
+            # Получаем первый объект PinnedPost из RelatedManager
+            pinned_post = self.pin_info.first()
+            if pinned_post:
+                return {
+                    'is_pinned': True,
+                    'pinned_at': pinned_post.pinned_at,
+                    'pinned_by': {
+                        'id': pinned_post.user.id,
+                        'username': pinned_post.user.username,
+                        'has_active_subscription': pinned_post.user.subscription.is_active()
+                    }
                 }
-            }
         return {'is_pinned': False}

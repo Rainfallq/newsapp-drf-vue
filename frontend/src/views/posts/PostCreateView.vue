@@ -491,7 +491,7 @@ export default {
         // Сохраняем как черновик
         await api.post('/api/v1/posts/', formData, {
           headers: {
-            'Content-Type': 'multipart/form-data'
+            'Content-Type': undefined  // Позволяем браузеру установить правильный Content-Type
           }
         })
         
@@ -661,18 +661,27 @@ export default {
         
         // Если есть изображение, создаем FormData
         let requestData
+        let requestConfig = {}
+        
         if (imageFile.value) {
           requestData = new FormData()
           Object.keys(postData).forEach(key => {
             requestData.append(key, postData[key])
           })
           requestData.append('image', imageFile.value)
+          
+          // Убираем Content-Type для FormData - браузер установит его автоматически
+          requestConfig = {
+            headers: {
+              'Content-Type': undefined
+            }
+          }
         } else {
           requestData = postData
         }
         
         // Используем store метод вместо прямого API вызова
-        const newPost = await postsStore.createPost(requestData)
+        const newPost = await postsStore.createPost(requestData, requestConfig)
         
         // Очищаем автосохранение
         if (autoSaveTimer.value) {

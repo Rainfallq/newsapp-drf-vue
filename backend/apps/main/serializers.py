@@ -92,6 +92,8 @@ class PostDetailSerializer(serializers.ModelSerializer):
         return obj.can_be_pinned_by(request.user)
         
 class PostCreateUpdateSerializer(serializers.ModelSerializer):
+    image = serializers.ImageField(required=False, allow_null=True)
+    
     class Meta:
         model = Post
         fields = ['title', 'content', 'image', 'category', 'status']
@@ -105,3 +107,17 @@ class PostCreateUpdateSerializer(serializers.ModelSerializer):
         if 'title' in validated_data:
             validated_data['slug'] = slugify(validated_data['title'])
         return super().update(instance, validated_data)
+    
+    def validate_image(self, value):
+        """Валидация изображения"""
+        if value:
+            # Проверяем размер файла (максимум 5MB)
+            if value.size > 5 * 1024 * 1024:
+                raise serializers.ValidationError("Размер изображения не должен превышать 5MB")
+            
+            # Проверяем тип файла
+            allowed_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
+            if value.content_type not in allowed_types:
+                raise serializers.ValidationError("Поддерживаются только форматы: JPEG, PNG, GIF, WebP")
+        
+        return value

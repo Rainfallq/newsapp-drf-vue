@@ -106,18 +106,20 @@ export const usePostsStore = defineStore('posts', () => {
     }
   }
 
-  const createPost = async (postData) => {
+  const createPost = async (postData, config = {}) => {
     isSubmitting.value = true
     try {
       // Определяем тип данных и настройки запроса
       const isFormData = postData instanceof FormData
-      const config = isFormData ? {
+      const requestConfig = isFormData ? {
+        ...config,
         headers: {
-          'Content-Type': 'multipart/form-data'
+          ...config.headers,
+          'Content-Type': undefined  // Позволяем браузеру установить правильный Content-Type
         }
-      } : {}
+      } : config
       
-      const response = await postsAPI.create(postData, config)
+      const response = await postsAPI.create(postData, requestConfig)
       const newPost = response.data
       
       // Добавляем новый пост в начало списка

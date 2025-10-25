@@ -59,12 +59,14 @@ class PostListCreateView(generics.ListCreateAPIView):
         show_pinned_first = not ordering or ordering in ['-created_at', 'created_at']
 
         if show_pinned_first:
-            # исправлено: метод должен вызываться на objects, а не на классе
-            return Post.objects.get_posts_for_feed().filter(
-                Q(status='published') | (
-                    Q(author=self.request.user) if self.request.user.is_authenticated else Q()
+            # Используем правильный метод менеджера для закрепленных постов
+            base_queryset = Post.objects.get_posts_for_feed()
+            if not self.request.user.is_authenticated:
+                return base_queryset.filter(status='published')
+            else:
+                return base_queryset.filter(
+                    Q(status='published') | Q(author=self.request.user)
                 )
-            )
         return queryset
     
     def get_serializer_class(self):
