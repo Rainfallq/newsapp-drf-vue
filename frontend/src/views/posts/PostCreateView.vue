@@ -492,7 +492,8 @@ export default {
         await api.post('/api/v1/posts/', formData, {
           headers: {
             'Content-Type': undefined  // Позволяем браузеру установить правильный Content-Type
-          }
+          },
+          _skipAutoToast: true  // Отключаем автоматические toast уведомления для автосохранения
         })
         
         if (isAutoSave) {
@@ -701,13 +702,36 @@ export default {
         
         if (error.response?.status === 400) {
           const data = error.response.data
+          // Обрабатываем ошибки валидации полей
           Object.keys(data).forEach(key => {
             if (Array.isArray(data[key])) {
               errors.value[key] = data[key][0]
+            } else if (typeof data[key] === 'string') {
+              errors.value[key] = data[key]
             }
           })
+          
+          // Если есть общая ошибка, показываем её
+          if (data.detail) {
+            toast.error(data.detail)
+          } else if (data.non_field_errors) {
+            toast.error(Array.isArray(data.non_field_errors) ? data.non_field_errors[0] : data.non_field_errors)
+          }
+        } else if (error.response?.status === 413) {
+          errors.value.general = 'Файл слишком большой. Максимальный размер: 5MB.'
+          toast.error('Файл слишком большой. Максимальный размер: 5MB.')
+        } else if (error.response?.status === 415) {
+          errors.value.general = 'Неподдерживаемый формат файла.'
+          toast.error('Неподдерживаемый формат файла.')
+        } else if (error.response?.status >= 500) {
+          errors.value.general = 'Ошибка сервера. Попробуйте позже.'
+          toast.error('Ошибка сервера. Попробуйте позже.')
+        } else if (error.request) {
+          errors.value.general = 'Не удается подключиться к серверу.'
+          toast.error('Не удается подключиться к серверу.')
         } else {
           errors.value.general = 'Произошла ошибка при создании статьи. Попробуйте еще раз.'
+          toast.error('Произошла ошибка при создании статьи. Попробуйте еще раз.')
         }
       }
     }

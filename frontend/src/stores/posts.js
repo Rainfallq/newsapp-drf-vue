@@ -116,8 +116,12 @@ export const usePostsStore = defineStore('posts', () => {
         headers: {
           ...config.headers,
           'Content-Type': undefined  // Позволяем браузеру установить правильный Content-Type
-        }
-      } : config
+        },
+        _skipAutoToast: true  // Отключаем автоматические toast уведомления
+      } : {
+        ...config,
+        _skipAutoToast: true  // Отключаем автоматические toast уведомления
+      }
       
       const response = await postsAPI.create(postData, requestConfig)
       const newPost = response.data

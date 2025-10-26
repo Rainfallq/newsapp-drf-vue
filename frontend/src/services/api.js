@@ -47,6 +47,9 @@ api.interceptors.response.use(
     const authStore = useAuthStore()
     const originalRequest = error.config
     
+    // Проверяем, нужно ли показывать автоматические toast уведомления
+    const skipAutoToast = originalRequest._skipAutoToast || false
+    
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true
       
@@ -59,18 +62,22 @@ api.interceptors.response.use(
         } catch (refreshError) {
           authStore.logout()
           router.push({ name: 'Login' })
-          toast.error('Сессия истекла. Пожалуйста, войдите снова.')
+          if (!skipAutoToast) {
+            toast.error('Сессия истекла. Пожалуйста, войдите снова.')
+          }
           return Promise.reject(refreshError)
         }
       } else {
         authStore.logout()
         router.push({ name: 'Login' })
-        toast.error('Необходима авторизация.')
+        if (!skipAutoToast) {
+          toast.error('Необходима авторизация.')
+        }
       }
     }
     
-    // Обработка других ошибок
-    if (error.response) {
+    // Обработка других ошибок (только если не отключены автоматические уведомления)
+    if (!skipAutoToast && error.response) {
       const { status, data } = error.response
       
       switch (status) {
@@ -100,9 +107,9 @@ api.interceptors.response.use(
         default:
           toast.error('Произошла неожиданная ошибка.')
       }
-    } else if (error.request) {
+    } else if (!skipAutoToast && error.request) {
       toast.error('Не удается подключиться к серверу.')
-    } else {
+    } else if (!skipAutoToast) {
       toast.error('Произошла ошибка при отправке запроса.')
     }
     
